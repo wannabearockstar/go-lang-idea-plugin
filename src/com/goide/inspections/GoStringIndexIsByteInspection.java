@@ -25,7 +25,6 @@ import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.ProblemsHolder;
 import com.intellij.openapi.util.Trinity;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.impl.source.tree.TreeElement;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -33,6 +32,7 @@ import java.util.Optional;
 public class GoStringIndexIsByteInspection extends GoInspectionBase {
 
   private static final String TEXT_HINT = "Mismatched types: byte and string";
+  private static final GoStringIndexIsByteQuickFix STRING_INDEX_IS_BYTE_QUICK_FIX = new GoStringIndexIsByteQuickFix();
 
   @NotNull
   @Override
@@ -48,12 +48,12 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
         if (o.getLeft() instanceof GoIndexOrSliceExpr && o.getRight() instanceof GoStringLiteral) {
           GoIndexOrSliceExpr left = (GoIndexOrSliceExpr)o.getLeft();
           GoStringLiteral right = (GoStringLiteral)o.getRight();
-          checkTypeMismatch(o, holder, left, right, new GoStringIndexIsByteQuickFix(right));
+          checkTypeMismatch(o, holder, left, right, STRING_INDEX_IS_BYTE_QUICK_FIX);
         }
         else if (o.getLeft() instanceof GoStringLiteral && o.getRight() instanceof GoIndexOrSliceExpr) {
           GoIndexOrSliceExpr right = (GoIndexOrSliceExpr)o.getRight();
           GoStringLiteral left = (GoStringLiteral)o.getLeft();
-          checkTypeMismatch(o, holder, right, left, new GoStringIndexIsByteQuickFix(left));
+          checkTypeMismatch(o, holder, right, left, STRING_INDEX_IS_BYTE_QUICK_FIX);
         }
       }
     };
@@ -61,9 +61,9 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
 
   private static void checkTypeMismatch(@NotNull GoConditionalExpr o,
                                         @NotNull ProblemsHolder holder,
-                                        GoIndexOrSliceExpr expr,
-                                        GoStringLiteral stringLiteral,
-                                        GoStringIndexIsByteQuickFix fix) {
+                                        @NotNull GoIndexOrSliceExpr expr,
+                                        @NotNull GoStringLiteral stringLiteral,
+                                        @NotNull GoStringIndexIsByteQuickFix fix) {
     if (isStringIndexExpression(expr)) {
       if (isSingleCharLiteral(stringLiteral)) {
         holder.registerProblem(o, TEXT_HINT, ProblemHighlightType.GENERIC_ERROR, fix);
@@ -74,7 +74,7 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
     }
   }
 
-  private static boolean isStringIndexExpression(GoIndexOrSliceExpr expr) {
+  private static boolean isStringIndexExpression(@NotNull GoIndexOrSliceExpr expr) {
     GoType type = Optional.of(expr)
       .map(GoIndexOrSliceExpr::getExpression)
       .map(e -> e.getGoType(null))
@@ -91,21 +91,15 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
 
     boolean isSliceExpr = indices.getSecond() != null
                           || indices.getThird() != null
-                          || isColon(colonCandidate);
+                          || colonCandidate.getNode().getElementType() == GoTypes.COLON;
 
     return !isSliceExpr;
   }
 
-  private static boolean isColon(PsiElement element) {
-    if (!(element instanceof TreeElement)) {
-      return false;
-    }
-    return ((TreeElement)element).getElementType().equals(GoTypes.COLON);
-  }
-
-  private static boolean isSingleCharLiteral(GoStringLiteral literal) {
+  public static boolean isSingleCharLiteral(@NotNull GoStringLiteral literal) {
+    String text = literal.getText();
     return literal.getTextLength() == 3
-           && literal.getText().charAt(0) == '\"'
-           && literal.getText().charAt(2) == '\"';
+           && text.charAt(0) == '\"'
+           && text.charAt(2) == '\"';
   }
 }

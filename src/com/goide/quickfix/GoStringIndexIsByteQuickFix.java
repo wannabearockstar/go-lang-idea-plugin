@@ -16,42 +16,27 @@
 
 package com.goide.quickfix;
 
-import com.goide.GoTypes;
+import com.goide.psi.GoConditionalExpr;
+import com.goide.psi.GoExpression;
+import com.goide.psi.GoIndexOrSliceExpr;
 import com.goide.psi.GoStringLiteral;
-import com.intellij.codeInspection.LocalQuickFixOnPsiElement;
-import com.intellij.lang.ASTFactory;
+import com.intellij.codeInspection.LocalQuickFixBase;
+import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.impl.source.tree.FileElement;
-import com.intellij.psi.impl.source.tree.LeafElement;
-import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
-import static com.intellij.psi.impl.GeneratedMarkerVisitor.markGenerated;
-import static com.intellij.psi.impl.source.DummyHolderFactory.createHolder;
+import static com.goide.inspections.GoStringIndexIsByteInspection.isSingleCharLiteral;
+import static com.goide.psi.impl.GoElementFactory.createComparison;
+import static java.lang.String.format;
 
-public class GoStringIndexIsByteQuickFix extends LocalQuickFixOnPsiElement {
+public class GoStringIndexIsByteQuickFix extends LocalQuickFixBase {
 
   public static final String NAME = "Convert string to byte";
 
-  public GoStringIndexIsByteQuickFix(@NotNull GoStringLiteral element) {
-    super(element);
-  }
-
-  @NotNull
-  @Override
-  public String getText() {
-    return NAME;
-  }
-
-  @Override
-  public void invoke(@NotNull Project project, @NotNull PsiFile file, @NotNull PsiElement startElement, @NotNull PsiElement endElement) {
-    if (startElement.getTextLength() < 2) {
-      return;
-    }
-    startElement.replace(createChar(startElement));
+  public GoStringIndexIsByteQuickFix() {
+    super(NAME);
   }
 
   @Nls
@@ -61,11 +46,38 @@ public class GoStringIndexIsByteQuickFix extends LocalQuickFixOnPsiElement {
     return getName();
   }
 
-  private static PsiElement createChar(PsiElement element) throws IncorrectOperationException {
-    FileElement holderElement = createHolder(element.getContainingFile().getManager(), null).getTreeElement();
-    LeafElement newElement = ASTFactory.leaf(GoTypes.CHAR, holderElement.getCharTable().intern("'" + element.getText().charAt(1) + "'"));
-    holderElement.rawAddChildren(newElement);
-    markGenerated(newElement.getPsi());
-    return newElement.getPsi();
+  @Override
+  public void applyFix(@NotNull Project project, @NotNull ProblemDescriptor descriptor) {
+    PsiElement element = descriptor.getPsiElement();
+    if (!(element instanceof GoConditionalExpr)) {
+      return;
+    }
+
+    GoConditionalExpr expr = (GoConditionalExpr)element;
+    if (expr.getEq() == null) {
+      return;
+    }
+
+    GoExpression left = expr.getLeft();
+    GoExpression right = expr.getRight();
+
+    if (left instanceof GoIndexOrSliceExpr && right instanceof GoStringLiteral) {
+      GoStringLiteral literal = (GoStringLiteral)right;
+      if (!isSingleCharLiteral(literal)) {
+        return;
+      }
+      expr.replace(createComparison(project, left.getText() + " == " + extractSingleCharFromText(literal)));
+    }
+    else if (left instanceof GoStringLiteral && right instanceof GoIndexOrSliceExpr) {
+      GoStringLiteral literal = (GoStringLiteral)left;
+      if (!isSingleCharLiteral(literal)) {
+        return;
+      }
+      expr.replace(createComparison(project, extractSingleCharFromText(literal) + " == " + right.getText()));
+    }
+  }
+
+  private static String extractSingleCharFromText(@NotNull GoStringLiteral element) {
+    return format("'%c'", element.getText().charAt(1));
   }
 }
