@@ -19,6 +19,11 @@ func main() {
 	invalid := <error descr="Mismatched types: byte and string">x[2] == "xt"</error>
 	invalid = <error descr="Mismatched types: byte and string">"t" == x[0]</error>
 	invalid = <error descr="Mismatched types: byte and string">x[3] == "x"</error>
+	invalid = <error descr="Mismatched types: byte and string">x[3] != "x"</error>
+	invalid = <error descr="Mismatched types: byte and string">x[3] >= "x"</error>
+	invalid = <error descr="Mismatched types: byte and string">x[3] <= "x"</error>
+	invalid = <error descr="Mismatched types: byte and string">x[3] > "x"</error>
+	invalid = <error descr="Mismatched types: byte and string">x[3] < "x"</error>
 
 	fmt.Println(invalid)
 

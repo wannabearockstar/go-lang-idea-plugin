@@ -18,17 +18,17 @@ package com.goide.quickfix;
 
 import com.goide.psi.GoConditionalExpr;
 import com.goide.psi.GoExpression;
-import com.goide.psi.GoIndexOrSliceExpr;
 import com.goide.psi.GoStringLiteral;
+import com.goide.psi.impl.GoElementFactory;
 import com.intellij.codeInspection.LocalQuickFixBase;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
-import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 
 import static com.goide.inspections.GoStringIndexIsByteInspection.isSingleCharLiteral;
-import static com.goide.psi.impl.GoElementFactory.createComparison;
+import static com.goide.psi.impl.GoElementFactory.createExpression;
+import static com.intellij.psi.ElementManipulators.getValueTextRange;
 import static java.lang.String.format;
 
 public class GoStringIndexIsByteQuickFix extends LocalQuickFixBase {
@@ -39,13 +39,6 @@ public class GoStringIndexIsByteQuickFix extends LocalQuickFixBase {
     super(NAME);
   }
 
-  @Nls
-  @NotNull
-  @Override
-  public String getFamilyName() {
-    return getName();
-  }
-
   @Override
   public void applyFix(@NotNull Project project, @NotNull ProblemDescriptor descriptor) {
     PsiElement element = descriptor.getPsiElement();
@@ -54,30 +47,27 @@ public class GoStringIndexIsByteQuickFix extends LocalQuickFixBase {
     }
 
     GoConditionalExpr expr = (GoConditionalExpr)element;
-    if (expr.getEq() == null) {
-      return;
-    }
-
     GoExpression left = expr.getLeft();
     GoExpression right = expr.getRight();
 
-    if (left instanceof GoIndexOrSliceExpr && right instanceof GoStringLiteral) {
-      GoStringLiteral literal = (GoStringLiteral)right;
-      if (!isSingleCharLiteral(literal)) {
-        return;
-      }
-      expr.replace(createComparison(project, left.getText() + " == " + extractSingleCharFromText(literal)));
+    GoStringLiteral literal;
+    if (right instanceof GoStringLiteral) {
+      literal = (GoStringLiteral)right;
     }
-    else if (left instanceof GoStringLiteral && right instanceof GoIndexOrSliceExpr) {
-      GoStringLiteral literal = (GoStringLiteral)left;
-      if (!isSingleCharLiteral(literal)) {
-        return;
-      }
-      expr.replace(createComparison(project, extractSingleCharFromText(literal) + " == " + right.getText()));
+    else if (left instanceof GoStringLiteral) {
+      literal = (GoStringLiteral)left;
     }
+    else {
+      return;
+    }
+
+    if (!isSingleCharLiteral(literal)) {
+      return;
+    }
+    literal.replace(createExpression(project, extractSingleCharFromText(literal)));
   }
 
   private static String extractSingleCharFromText(@NotNull GoStringLiteral element) {
-    return format("'%c'", element.getText().charAt(1));
+    return format("'%s'", getValueTextRange(element).substring(element.getText()));
   }
 }

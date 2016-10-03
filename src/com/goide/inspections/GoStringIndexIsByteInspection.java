@@ -24,7 +24,7 @@ import com.intellij.codeInspection.LocalInspectionToolSession;
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.ProblemsHolder;
 import com.intellij.openapi.util.Trinity;
-import com.intellij.psi.PsiElement;
+import com.intellij.psi.tree.TokenSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -41,19 +41,15 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
 
       @Override
       public void visitConditionalExpr(@NotNull GoConditionalExpr o) {
-        if (o.getEq() == null) {
-          return;
-        }
-
         if (o.getLeft() instanceof GoIndexOrSliceExpr && o.getRight() instanceof GoStringLiteral) {
           GoIndexOrSliceExpr left = (GoIndexOrSliceExpr)o.getLeft();
           GoStringLiteral right = (GoStringLiteral)o.getRight();
-          checkTypeMismatch(o, holder, left, right, STRING_INDEX_IS_BYTE_QUICK_FIX);
+          checkTypeMismatch(o, holder, left, right);
         }
         else if (o.getLeft() instanceof GoStringLiteral && o.getRight() instanceof GoIndexOrSliceExpr) {
           GoIndexOrSliceExpr right = (GoIndexOrSliceExpr)o.getRight();
           GoStringLiteral left = (GoStringLiteral)o.getLeft();
-          checkTypeMismatch(o, holder, right, left, STRING_INDEX_IS_BYTE_QUICK_FIX);
+          checkTypeMismatch(o, holder, right, left);
         }
       }
     };
@@ -62,11 +58,10 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
   private static void checkTypeMismatch(@NotNull GoConditionalExpr o,
                                         @NotNull ProblemsHolder holder,
                                         @NotNull GoIndexOrSliceExpr expr,
-                                        @NotNull GoStringLiteral stringLiteral,
-                                        @NotNull GoStringIndexIsByteQuickFix fix) {
+                                        @NotNull GoStringLiteral stringLiteral) {
     if (isStringIndexExpression(expr)) {
       if (isSingleCharLiteral(stringLiteral)) {
-        holder.registerProblem(o, TEXT_HINT, ProblemHighlightType.GENERIC_ERROR, fix);
+        holder.registerProblem(o, TEXT_HINT, ProblemHighlightType.GENERIC_ERROR, STRING_INDEX_IS_BYTE_QUICK_FIX);
       }
       else {
         holder.registerProblem(o, TEXT_HINT, ProblemHighlightType.GENERIC_ERROR);
@@ -85,21 +80,12 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
     }
 
     Trinity<GoExpression, GoExpression, GoExpression> indices = expr.getIndices();
-    PsiElement colonCandidate = Optional.ofNullable(expr.getRbrack())
-      .map(PsiElement::getPrevSibling)
-      .orElse(null);
-
-    boolean isSliceExpr = indices.getSecond() != null
-                          || indices.getThird() != null
-                          || colonCandidate.getNode().getElementType() == GoTypes.COLON;
-
-    return !isSliceExpr;
+    return indices.getSecond() == null
+           && indices.getThird() == null
+           && expr.getNode().getChildren(TokenSet.create(GoTypes.COLON)).length == 0;
   }
 
   public static boolean isSingleCharLiteral(@NotNull GoStringLiteral literal) {
-    String text = literal.getText();
-    return literal.getTextLength() == 3
-           && text.charAt(0) == '\"'
-           && text.charAt(2) == '\"';
+    return literal.getDecodedText().length() == 1;
   }
 }

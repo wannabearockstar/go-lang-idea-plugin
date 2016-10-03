@@ -34,8 +34,15 @@ public class GoStringIndexIsByteQuickFixTest extends GoQuickFixTestBase {
     return "quickfixes/string-index-is-byte";
   }
 
-  public void testSimple()                  { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testEqualsCondition()         { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testNotEqualsCondition()      { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testGreaterCondition()        { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testGreaterOrEqualsCondition(){ doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testLessCondition()           { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testLessOrEqualsCondition()   { doTest(GoStringIndexIsByteQuickFix.NAME); }
   public void testReverse()                 { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testLiterals()                { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  public void testLongLiteral()             { doTest(GoStringIndexIsByteQuickFix.NAME); }
   public void testSliceFromLeft()           { doTestNoFix(GoStringIndexIsByteQuickFix.NAME); }
   public void testSliceFromRight()          { doTestNoFix(GoStringIndexIsByteQuickFix.NAME); }
   public void testSliceUnbound()            { doTestNoFix(GoStringIndexIsByteQuickFix.NAME); }
