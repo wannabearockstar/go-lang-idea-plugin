@@ -28,6 +28,8 @@ import com.intellij.openapi.util.Trinity;
 import com.intellij.psi.tree.TokenSet;
 import org.jetbrains.annotations.NotNull;
 
+import static com.goide.psi.impl.GoPsiImplUtil.getFirstElementOfType;
+
 public class GoStringIndexIsByteInspection extends GoInspectionBase {
 
   private static final String TEXT_HINT = "Mismatched types: byte and string";
@@ -43,17 +45,10 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
         GoExpression left = o.getLeft();
         GoExpression right = o.getRight();
 
-        GoIndexOrSliceExpr indexExpr;
-        GoStringLiteral stringLiteral;
-        if (left instanceof GoIndexOrSliceExpr && right instanceof GoStringLiteral) {
-          indexExpr = (GoIndexOrSliceExpr)left;
-          stringLiteral = (GoStringLiteral)right;
-        }
-        else if (right instanceof GoIndexOrSliceExpr && left instanceof GoStringLiteral) {
-          indexExpr = (GoIndexOrSliceExpr)right;
-          stringLiteral = (GoStringLiteral)left;
-        }
-        else {
+        GoIndexOrSliceExpr indexExpr = getFirstElementOfType(GoIndexOrSliceExpr.class, left, right);
+        GoStringLiteral stringLiteral = getFirstElementOfType(GoStringLiteral.class, left, right);
+
+        if (indexExpr == null || stringLiteral == null) {
           return;
         }
 
