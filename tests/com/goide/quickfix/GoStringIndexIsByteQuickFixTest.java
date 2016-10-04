@@ -34,17 +34,21 @@ public class GoStringIndexIsByteQuickFixTest extends GoQuickFixTestBase {
     return "quickfixes/string-index-is-byte";
   }
 
-  public void testEqualsCondition()         { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testNotEqualsCondition()      { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testGreaterCondition()        { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testGreaterOrEqualsCondition(){ doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testLessCondition()           { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testLessOrEqualsCondition()   { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testReverse()                 { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testLiterals()                { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testLongLiteral()             { doTest(GoStringIndexIsByteQuickFix.NAME); }
-  public void testSliceFromLeft()           { doTestNoFix(GoStringIndexIsByteQuickFix.NAME); }
-  public void testSliceFromRight()          { doTestNoFix(GoStringIndexIsByteQuickFix.NAME); }
-  public void testSliceUnbound()            { doTestNoFix(GoStringIndexIsByteQuickFix.NAME); }
-  public void testMoreThanOneCharInString() { doTestNoFix(GoStringIndexIsByteQuickFix.NAME, true); }
+  private void doTest()                             { doTest(GoStringIndexIsByteQuickFix.NAME); }
+  private void doNotTest(boolean checkHighlighting) { doTestNoFix(GoStringIndexIsByteQuickFix.NAME, checkHighlighting); }
+  private void doNotTest()                          { doNotTest(false); }
+
+  public void testEqualsCondition()                 { doTest(); }
+  public void testNotEqualsCondition()              { doTest(); }
+  public void testGreaterCondition()                { doTest(); }
+  public void testGreaterOrEqualsCondition()        { doTest(); }
+  public void testLessCondition()                   { doTest(); }
+  public void testLessOrEqualsCondition()           { doTest(); }
+  public void testReverse()                         { doTest(); }
+  public void testLiterals()                        { doTest(); }
+  public void testLongLiteral()                     { doTest(); }
+  public void testSliceFromLeft()                   { doNotTest(); }
+  public void testSliceFromRight()                  { doNotTest(); }
+  public void testSliceUnbound()                    { doNotTest(); }
+  public void testMoreThanOneCharInString()         { doNotTest(true); }
 }

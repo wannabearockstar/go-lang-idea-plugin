@@ -21,13 +21,12 @@ import com.goide.psi.*;
 import com.goide.psi.impl.GoTypeUtil;
 import com.goide.quickfix.GoStringIndexIsByteQuickFix;
 import com.intellij.codeInspection.LocalInspectionToolSession;
+import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.ProblemsHolder;
 import com.intellij.openapi.util.Trinity;
 import com.intellij.psi.tree.TokenSet;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Optional;
 
 public class GoStringIndexIsByteInspection extends GoInspectionBase {
 
@@ -41,39 +40,35 @@ public class GoStringIndexIsByteInspection extends GoInspectionBase {
 
       @Override
       public void visitConditionalExpr(@NotNull GoConditionalExpr o) {
-        if (o.getLeft() instanceof GoIndexOrSliceExpr && o.getRight() instanceof GoStringLiteral) {
-          GoIndexOrSliceExpr left = (GoIndexOrSliceExpr)o.getLeft();
-          GoStringLiteral right = (GoStringLiteral)o.getRight();
-          checkTypeMismatch(o, holder, left, right);
+        GoExpression left = o.getLeft();
+        GoExpression right = o.getRight();
+
+        GoIndexOrSliceExpr indexExpr;
+        GoStringLiteral stringLiteral;
+        if (left instanceof GoIndexOrSliceExpr && right instanceof GoStringLiteral) {
+          indexExpr = (GoIndexOrSliceExpr)left;
+          stringLiteral = (GoStringLiteral)right;
         }
-        else if (o.getLeft() instanceof GoStringLiteral && o.getRight() instanceof GoIndexOrSliceExpr) {
-          GoIndexOrSliceExpr right = (GoIndexOrSliceExpr)o.getRight();
-          GoStringLiteral left = (GoStringLiteral)o.getLeft();
-          checkTypeMismatch(o, holder, right, left);
+        else if (right instanceof GoIndexOrSliceExpr && left instanceof GoStringLiteral) {
+          indexExpr = (GoIndexOrSliceExpr)right;
+          stringLiteral = (GoStringLiteral)left;
+        }
+        else {
+          return;
+        }
+
+        if (isStringIndexExpression(indexExpr)) {
+          LocalQuickFix[] fixes =
+            isSingleCharLiteral(stringLiteral) ? new LocalQuickFix[]{STRING_INDEX_IS_BYTE_QUICK_FIX} : LocalQuickFix.EMPTY_ARRAY;
+          holder.registerProblem(o, TEXT_HINT, ProblemHighlightType.GENERIC_ERROR, fixes);
         }
       }
     };
   }
 
-  private static void checkTypeMismatch(@NotNull GoConditionalExpr o,
-                                        @NotNull ProblemsHolder holder,
-                                        @NotNull GoIndexOrSliceExpr expr,
-                                        @NotNull GoStringLiteral stringLiteral) {
-    if (isStringIndexExpression(expr)) {
-      if (isSingleCharLiteral(stringLiteral)) {
-        holder.registerProblem(o, TEXT_HINT, ProblemHighlightType.GENERIC_ERROR, STRING_INDEX_IS_BYTE_QUICK_FIX);
-      }
-      else {
-        holder.registerProblem(o, TEXT_HINT, ProblemHighlightType.GENERIC_ERROR);
-      }
-    }
-  }
-
   private static boolean isStringIndexExpression(@NotNull GoIndexOrSliceExpr expr) {
-    GoType type = Optional.of(expr)
-      .map(GoIndexOrSliceExpr::getExpression)
-      .map(e -> e.getGoType(null))
-      .orElse(null);
+    GoExpression expression = expr.getExpression();
+    GoType type = expression != null ? expression.getGoType(null) : null;
 
     if (!GoTypeUtil.isString(type)) {
       return false;

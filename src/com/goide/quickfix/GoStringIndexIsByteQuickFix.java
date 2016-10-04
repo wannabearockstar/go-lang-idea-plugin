@@ -19,12 +19,12 @@ package com.goide.quickfix;
 import com.goide.psi.GoConditionalExpr;
 import com.goide.psi.GoExpression;
 import com.goide.psi.GoStringLiteral;
-import com.goide.psi.impl.GoElementFactory;
 import com.intellij.codeInspection.LocalQuickFixBase;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import static com.goide.inspections.GoStringIndexIsByteInspection.isSingleCharLiteral;
 import static com.goide.psi.impl.GoElementFactory.createExpression;
@@ -47,26 +47,25 @@ public class GoStringIndexIsByteQuickFix extends LocalQuickFixBase {
     }
 
     GoConditionalExpr expr = (GoConditionalExpr)element;
-    GoExpression left = expr.getLeft();
-    GoExpression right = expr.getRight();
-
-    GoStringLiteral literal;
-    if (right instanceof GoStringLiteral) {
-      literal = (GoStringLiteral)right;
-    }
-    else if (left instanceof GoStringLiteral) {
-      literal = (GoStringLiteral)left;
-    }
-    else {
+    GoStringLiteral literal = getFirstStringLiteral(expr.getLeft(), expr.getRight());
+    if (literal == null || !isSingleCharLiteral(literal)) {
       return;
     }
 
-    if (!isSingleCharLiteral(literal)) {
-      return;
-    }
     literal.replace(createExpression(project, extractSingleCharFromText(literal)));
   }
 
+  @Nullable
+  private static GoStringLiteral getFirstStringLiteral(@NotNull GoExpression... expressions) {
+    for (GoExpression expr : expressions) {
+      if (expr instanceof GoStringLiteral) {
+        return (GoStringLiteral)expr;
+      }
+    }
+    return null;
+  }
+
+  @NotNull
   private static String extractSingleCharFromText(@NotNull GoStringLiteral element) {
     return format("'%s'", getValueTextRange(element).substring(element.getText()));
   }
