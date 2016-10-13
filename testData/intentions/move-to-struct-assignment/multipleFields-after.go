@@ -5,8 +5,12 @@ type S struct {
 	bar string
 }
 
+type B struct {
+	x int
+}
+
 func main() {
-	s := S{bar: "bar"}
-	s.foo = "foo"
+	s, b := S{foo: "foo", bar: "bar"}, B{}
+	b.x = 3
 	print(s.foo)
 }

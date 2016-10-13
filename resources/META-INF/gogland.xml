@@ -168,12 +168,6 @@
     <runLineMarkerContributor language="go" implementationClass="com.goide.runconfig.testing.GoTestRunLineMarkerProvider"/>
     <runLineMarkerContributor language="go" implementationClass="com.goide.runconfig.GoRunLineMarkerProvider"/>
 
-    <!-- intentions -->
-    <intentionAction>
-      <category>Go/Declaration</category>
-      <className>com.goide.codeInsight.intention.GoMoveToStructAssignmentAction</className>
-    </intentionAction>
-
     <!-- debugger -->
     <xdebugger.breakpointType implementation="com.goide.dlv.breakpoint.DlvBreakpointType"/>
 
@@ -186,6 +180,11 @@
       <bundleName>com.goide.GoBundle</bundleName>
       <categoryKey>go.intentions.category</categoryKey>
       <className>com.goide.intentions.GoAddFunctionBlockIntention</className>
+    </intentionAction>
+    <intentionAction>
+      <bundleName>com.goide.GoBundle</bundleName>
+      <categoryKey>go.intentions.category</categoryKey>
+      <className>com.goide.intentions.GoMoveToStructAssignmentIntention</className>
     </intentionAction>
     <!-- unused inspections -->
     <localInspection language="go" displayName="Unused import inspection" groupPath="Go"

@@ -265,6 +265,11 @@ public class GoPsiImplUtil {
     return identifier != null ? identifier.getText() : null;
   }
 
+  @NotNull
+  public static String getName(@NotNull GoVarDefinition var) {
+    return var.getIdentifier().getText();
+  }
+
   @Nullable
   public static GoTypeReferenceExpression getTypeReferenceExpression(@NotNull GoAnonymousFieldDefinition o) {
     return getTypeRefExpression(o.getType());
@@ -1697,7 +1702,7 @@ public class GoPsiImplUtil {
   @Nullable
   public static GoExpression getExpressionValue(@NotNull GoAssignmentStatement assignment, @NotNull GoExpression expression) {
     int fieldIndex = assignment.getLeftHandExprList().getExpressionList().indexOf(expression);
-    if (fieldIndex < 0) {
+    if (fieldIndex < 0 || fieldIndex >= assignment.getExpressionList().size()) {
       return null;
     }
     return assignment.getExpressionList().get(fieldIndex);
