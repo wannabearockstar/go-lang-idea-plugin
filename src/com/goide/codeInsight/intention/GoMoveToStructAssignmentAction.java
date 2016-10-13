@@ -41,42 +41,32 @@ public class GoMoveToStructAssignmentAction extends PsiElementBaseIntentionActio
 
   @Override
   public boolean isAvailable(@NotNull Project project, Editor editor, @NotNull PsiElement element) {
-    if (element.isValid() && element.isWritable()) {
-      GoAssignmentStatement assignment = PsiTreeUtil.getParentOfType(element, GoAssignmentStatement.class, false);
-      if (assignment != null && assignment.isValid()) {
-        GoReferenceExpression field = getFieldReference(element, assignment);
-        if (field != null) {
-          GoCompositeLit structDefinition = getStructDefinitionByField(field, assignment);
-          if (structDefinition != null) {
-            return isFieldUninitialized(field, structDefinition);
-          }
-        }
-      }
-    }
-    return false;
+    if (!element.isValid() || !element.isWritable()) return false;
+    GoAssignmentStatement assignment = PsiTreeUtil.getParentOfType(element, GoAssignmentStatement.class, false);
+    if (assignment == null || !assignment.isValid()) return false;
+    GoReferenceExpression field = getFieldReference(element, assignment);
+    if (field == null) return false;
+    GoCompositeLit structDefinition = getStructDefinitionByField(field, assignment);
+    if (structDefinition == null) return false;
+    return isFieldUninitialized(field, structDefinition);
   }
 
   @Override
   public void invoke(@NotNull Project project, Editor editor, @NotNull PsiElement element) throws IncorrectOperationException {
-    if (element.isValid() && element.isWritable()) {
-      GoAssignmentStatement assignment = PsiTreeUtil.getParentOfType(element, GoAssignmentStatement.class, false);
-      if (assignment != null && assignment.isValid()) {
-        GoReferenceExpression field = getFieldReference(element, assignment);
-        if (field != null) {
-          GoCompositeLit structDefinition = getStructDefinitionByField(field, assignment);
-          if (structDefinition != null && isFieldUninitialized(field, structDefinition)) {
-            GoExpression fieldValue = GoPsiImplUtil.getExpressionValue(assignment, field);
-            GoLiteralValue structFieldDefinitions = structDefinition.getLiteralValue();
-            if (fieldValue != null && structFieldDefinitions != null) {
-              WriteCommandAction.runWriteCommandAction(project, () -> {
-                GoPsiImplUtil.deleteExpressionFromAssignment(assignment, field);
-                addFieldDefinition(structFieldDefinitions, getFieldName(field), fieldValue.getText(), project);
-              });
-            }
-          }
-        }
-      }
-    }
+    if (!element.isValid() || !element.isWritable()) return;
+    GoAssignmentStatement assignment = PsiTreeUtil.getParentOfType(element, GoAssignmentStatement.class, false);
+    if (assignment == null || !assignment.isValid()) return;
+    GoReferenceExpression field = getFieldReference(element, assignment);
+    if (field == null) return;
+    GoCompositeLit structDefinition = getStructDefinitionByField(field, assignment);
+    if (structDefinition == null || !isFieldUninitialized(field, structDefinition)) return;
+    GoExpression fieldValue = GoPsiImplUtil.getExpressionValue(assignment, field);
+    GoLiteralValue structFieldDefinitions = structDefinition.getLiteralValue();
+    if (fieldValue == null || structFieldDefinitions == null) return;
+    WriteCommandAction.runWriteCommandAction(project, () -> {
+      GoPsiImplUtil.deleteExpressionFromAssignment(assignment, field);
+      addFieldDefinition(structFieldDefinitions, getFieldName(field), fieldValue.getText(), project);
+    });
   }
 
   @Nullable
@@ -84,25 +74,20 @@ public class GoMoveToStructAssignmentAction extends PsiElementBaseIntentionActio
                                                          @NotNull GoAssignmentStatement assignment) {
     List<GoExpression> expressions = assignment.getLeftHandExprList().getExpressionList();
     List<GoExpression> structFields = ContainerUtil.filter(expressions, GoMoveToStructAssignmentAction::isFieldDefinition);
-    if (!structFields.isEmpty()) {
-      if (structFields.size() == 1) {
-        GoExpression onlyFieldReference = ContainerUtil.getFirstItem(structFields);
-        return onlyFieldReference instanceof GoReferenceExpression ? (GoReferenceExpression)onlyFieldReference : null;
-      }
-      GoReferenceExpression selectedFieldReference = PsiTreeUtil.getTopmostParentOfType(selectedElement, GoReferenceExpression.class);
-      if (selectedFieldReference != null && isFieldDefinition(selectedFieldReference)) {
-        return selectedFieldReference;
-      }
+    if (structFields.isEmpty()) return null;
+    if (structFields.size() == 1) {
+      GoExpression onlyFieldReference = ContainerUtil.getFirstItem(structFields);
+      return onlyFieldReference instanceof GoReferenceExpression ? (GoReferenceExpression)onlyFieldReference : null;
     }
-    return null;
+    GoReferenceExpression selectedFieldReference = PsiTreeUtil.getTopmostParentOfType(selectedElement, GoReferenceExpression.class);
+    if (selectedFieldReference == null || !isFieldDefinition(selectedFieldReference)) return null;
+    return selectedFieldReference;
   }
 
   @Contract("null -> false")
   private static boolean isFieldDefinition(@Nullable GoExpression expression) {
-    if (expression instanceof GoReferenceExpression) {
-      return ((GoReferenceExpression)expression).resolve() instanceof GoFieldDefinition;
-    }
-    return false;
+    if (!(expression instanceof GoReferenceExpression)) return false;
+    return ((GoReferenceExpression)expression).resolve() instanceof GoFieldDefinition;
   }
 
   @Nullable
@@ -121,17 +106,13 @@ public class GoMoveToStructAssignmentAction extends PsiElementBaseIntentionActio
   @Nullable
   private static GoCompositeLit getStructDefinition(@NotNull GoReferenceExpression field, @NotNull GoSimpleStatement structDeclaration) {
     GoShortVarDeclaration varDeclaration = structDeclaration.getShortVarDeclaration();
-    if (varDeclaration != null) {
-      GoVarDefinition structVarDefinition =
-        ContainerUtil.find(varDeclaration.getVarDefinitionList(), struct -> isStructWithField(field, struct));
-      if (structVarDefinition != null) {
-        GoExpression structDefinition = structVarDefinition.getValue();
-        if (structDefinition instanceof GoCompositeLit) {
-          return (GoCompositeLit)structDefinition;
-        }
-      }
-    }
-    return null;
+    if (varDeclaration == null) return null;
+    GoVarDefinition structVarDefinition =
+      ContainerUtil.find(varDeclaration.getVarDefinitionList(), struct -> isStructWithField(field, struct));
+    if (structVarDefinition == null) return null;
+    GoExpression structDefinition = structVarDefinition.getValue();
+    if (!(structDefinition instanceof GoCompositeLit)) return null;
+    return (GoCompositeLit)structDefinition;
   }
 
   @Nullable
@@ -140,27 +121,20 @@ public class GoMoveToStructAssignmentAction extends PsiElementBaseIntentionActio
     int structIndex = ContainerUtil.indexOf(expressions, new Condition<GoExpression>() {
       @Override
       public boolean value(GoExpression expression) {
-        if (expression instanceof GoReferenceExpression) {
-          PsiElement structDefinition = ((GoReferenceExpression)expression).resolve();
-          if (structDefinition instanceof GoVarDefinition) {
-            return isStructWithField(field, (GoVarDefinition)structDefinition);
-          }
-        }
-        return false;
+        if (!(expression instanceof GoReferenceExpression)) return false;
+        PsiElement structDefinition = ((GoReferenceExpression)expression).resolve();
+        if (!(structDefinition instanceof GoVarDefinition)) return false;
+        return isStructWithField(field, (GoVarDefinition)structDefinition);
       }
     });
-    if (structIndex >= 0 && structAssignment.getExpressionList().get(structIndex) instanceof GoCompositeLit) {
-      return (GoCompositeLit)structAssignment.getExpressionList().get(structIndex);
-    }
-    return null;
+    if (structIndex < 0 || !(structAssignment.getExpressionList().get(structIndex) instanceof GoCompositeLit)) return null;
+    return (GoCompositeLit)structAssignment.getExpressionList().get(structIndex);
   }
 
   private static boolean isStructWithField(@NotNull GoReferenceExpression field, @NotNull GoVarDefinition structVar) {
     GoStructType structType = getStruct(structVar);
-    if (structType != null) {
-      return hasFieldByName(structType, getFieldName(field));
-    }
-    return false;
+    if (structType == null) return false;
+    return hasFieldByName(structType, getFieldName(field));
   }
 
   @Nullable
@@ -184,9 +158,7 @@ public class GoMoveToStructAssignmentAction extends PsiElementBaseIntentionActio
 
   private static boolean hasFieldName(@NotNull GoElement fieldInitializer, @NotNull String fieldName) {
     GoKey field = fieldInitializer.getKey();
-    if (field == null) {
-      return false;
-    }
+    if (field == null) return false;
     return field.getFieldName() != null && fieldName.equals(field.getFieldName().getText());
   }
 
