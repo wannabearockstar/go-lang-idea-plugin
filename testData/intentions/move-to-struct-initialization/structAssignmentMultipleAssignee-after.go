@@ -10,4 +10,6 @@ func main() {
 	a, s, b = "a", S{foo: "bar"}, "b"
 
 	print(s.foo)
+	print(a)
+	print(b)
 }

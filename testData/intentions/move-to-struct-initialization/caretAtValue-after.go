@@ -5,7 +5,7 @@ type S struct {
 }
 
 func main() {
-	var b
+	var b string
 	s := S{foo: "bar"}
 	b = "b"
 	print(s.foo)

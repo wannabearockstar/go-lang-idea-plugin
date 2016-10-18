@@ -1702,9 +1702,6 @@ public class GoPsiImplUtil {
   @Nullable
   public static GoExpression getExpressionValue(@NotNull GoAssignmentStatement assignment, @NotNull GoExpression expression) {
     int fieldIndex = assignment.getLeftHandExprList().getExpressionList().indexOf(expression);
-    if (fieldIndex < 0 || fieldIndex >= assignment.getExpressionList().size()) {
-      return null;
-    }
-    return assignment.getExpressionList().get(fieldIndex);
+    return fieldIndex >= 0 && fieldIndex < assignment.getExpressionList().size() ? assignment.getExpressionList().get(fieldIndex) : null;
   }
 }

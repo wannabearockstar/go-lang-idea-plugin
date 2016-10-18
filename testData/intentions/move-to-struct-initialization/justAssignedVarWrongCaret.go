@@ -2,15 +2,14 @@ package main
 
 type S struct {
 	foo string
-}
-
-type B struct {
 	bar string
 }
 
 func main() {
 	var s S
-	b := B{}
-	s.foo <caret>= "bar"
+	var str string
+	s, str = S{}, "bar"
+	s.foo, s.bar<caret> = "foo", str
 	print(s.foo)
+	print(str)
 }

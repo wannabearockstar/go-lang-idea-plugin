@@ -16,20 +16,21 @@
 
 package com.goide.quickfix;
 
-import com.goide.intentions.GoMoveToStructAssignmentIntention;
+import com.goide.intentions.GoMoveToStructInitializationIntention;
 import org.jetbrains.annotations.NotNull;
 
-public class GoMoveToStructAssignmentIntentionTest extends GoQuickFixTestBase {
+public class GoMoveToStructInitializationIntentionTest extends GoQuickFixTestBase {
   @NotNull
   @Override
   protected String getBasePath() {
-    return "intentions/move-to-struct-assignment";
+    return "intentions/move-to-struct-initialization";
   }
 
-  private void doTest()                                     { doTest(GoMoveToStructAssignmentIntention.NAME); }
-  private void doTestNoFix()                                { doTestNoFix(GoMoveToStructAssignmentIntention.NAME); }
+  private void doTest()                                     { doTest(GoMoveToStructInitializationIntention.NAME); }
+  private void doTestNoFix()                                { doTestNoFix(GoMoveToStructInitializationIntention.NAME); }
 
   public void testSimple()                                  { doTest(); }
+  public void testFieldExchange()                           { doTest(); }
   public void testCaretAtValue()                            { doTest(); }
   public void testAnonymousField()                          { doTest(); }
   public void testStructAssignment()                        { doTest(); }
@@ -39,15 +40,21 @@ public class GoMoveToStructAssignmentIntentionTest extends GoQuickFixTestBase {
   public void testMultipleFields()                          { doTest(); }
   public void testTwoSameStructures()                       { doTest(); }
   public void testTwoSameStructuresAssignment()             { doTest(); }
+  public void testJustAssignedVar()                         { doTest(); }
+  public void testJustInitializedVar()                      { doTest(); }
   public void testMultiReturnFunction()                     { doTestNoFix(); }
   public void testWrongStruct()                             { doTestNoFix(); }
   public void testExistingDeclaration()                     { doTestNoFix(); }
   public void testNotExistingField()                        { doTestNoFix(); }
   public void testInvalidAssignment()                       { doTestNoFix(); }
+  public void testJustAssignedVarWrongCaret()               { doTestNoFix(); }
+  public void testJustInitializedVarWrongCaret()            { doTestNoFix(); }
   public void testExistingField()                           { doTest(); }
   public void testMultipleAssignmentsLeftmost()             { doTest(); }
   public void testMultipleAssignmentsRightmost()            { doTest(); }
   public void testMultipleAssignmentsMiddle()               { doTest(); }
   public void testMultipleFieldsPartlyAssigned()            { doTest(); }
+  public void testDuplicateFields()                         { doTest(); }
+
 }
 

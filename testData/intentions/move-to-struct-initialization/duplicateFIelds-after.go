@@ -2,13 +2,11 @@ package main
 
 type S struct {
 	foo string
+	bar string
 }
 
 func main() {
-	var b, a
-	s := S{foo: "bar"}
-	b, a = "b", "a"
+	s := S{bar: "bar"}
+	s.foo, s.foo = "foo", "bar1"
 	print(s.foo)
-	print(b)
-	print(a)
 }

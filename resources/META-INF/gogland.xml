@@ -184,7 +184,7 @@
     <intentionAction>
       <bundleName>com.goide.GoBundle</bundleName>
       <categoryKey>go.intentions.category</categoryKey>
-      <className>com.goide.intentions.GoMoveToStructAssignmentIntention</className>
+      <className>com.goide.intentions.GoMoveToStructInitializationIntention</className>
     </intentionAction>
     <!-- unused inspections -->
     <localInspection language="go" displayName="Unused import inspection" groupPath="Go"

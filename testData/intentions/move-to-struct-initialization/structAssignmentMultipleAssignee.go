@@ -5,10 +5,11 @@ type S struct {
 }
 
 func main() {
-	var b, a
-	s := S{foo: "bar"}
-	a, b = "a", "b"
+	var s S
+	var a, b string
+	a, s, b = "a", S{}, "b"
+	s.foo <caret>= "bar"
 	print(s.foo)
-	print(b)
 	print(a)
+	print(b)
 }
