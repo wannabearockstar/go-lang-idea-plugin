@@ -11,7 +11,7 @@ func str2() (string, string) {
 
 func main() {
 	var a string
-	s := S{}
-	s.foo, s.bar<caret> = str2(), "bar"
+	s := S{foo: str2(), bar: "bar"}
+
 	print(s.foo)
 }

@@ -8,6 +8,6 @@ type S struct {
 
 func main() {
 	s, str := S{}, "bar"
-	s.foo, s.str<caret> = "foo", bar
+	s.foo, s.bar<caret> = "foo", str
 	print(s.foo)
 }

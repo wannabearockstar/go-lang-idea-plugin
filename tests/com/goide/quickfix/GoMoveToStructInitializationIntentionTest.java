@@ -46,9 +46,9 @@ public class GoMoveToStructInitializationIntentionTest extends GoQuickFixTestBas
   public void testWrongStruct()                             { doTestNoFix(); }
   public void testExistingDeclaration()                     { doTestNoFix(); }
   public void testNotExistingField()                        { doTestNoFix(); }
-  public void testInvalidAssignment()                       { doTestNoFix(); }
   public void testJustAssignedVarWrongCaret()               { doTestNoFix(); }
   public void testJustInitializedVarWrongCaret()            { doTestNoFix(); }
+  public void testInvalidAssignment()                       { doTest(); }
   public void testExistingField()                           { doTest(); }
   public void testMultipleAssignmentsLeftmost()             { doTest(); }
   public void testMultipleAssignmentsRightmost()            { doTest(); }

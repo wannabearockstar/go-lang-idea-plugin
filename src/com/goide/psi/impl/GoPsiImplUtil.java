@@ -265,11 +265,6 @@ public class GoPsiImplUtil {
     return identifier != null ? identifier.getText() : null;
   }
 
-  @NotNull
-  public static String getName(@NotNull GoVarDefinition var) {
-    return var.getIdentifier().getText();
-  }
-
   @Nullable
   public static GoTypeReferenceExpression getTypeReferenceExpression(@NotNull GoAnonymousFieldDefinition o) {
     return getTypeRefExpression(o.getType());
@@ -1361,7 +1356,7 @@ public class GoPsiImplUtil {
 
   public static void deleteExpressionFromAssignment(@NotNull GoAssignmentStatement assignment,
                                                     @NotNull GoExpression expressionToDelete) {
-    GoExpression expressionValue = getExpressionValue(assignment, expressionToDelete);
+    GoExpression expressionValue = getRightExpression(expressionToDelete, assignment);
     if (expressionValue != null) {
       if (assignment.getExpressionList().size() == 1) {
         assignment.delete();
@@ -1700,8 +1695,8 @@ public class GoPsiImplUtil {
   }
 
   @Nullable
-  public static GoExpression getExpressionValue(@NotNull GoAssignmentStatement assignment, @NotNull GoExpression expression) {
-    int fieldIndex = assignment.getLeftHandExprList().getExpressionList().indexOf(expression);
+  public static GoExpression getRightExpression(@NotNull GoExpression leftExpression, @NotNull GoAssignmentStatement assignment) {
+    int fieldIndex = assignment.getLeftHandExprList().getExpressionList().indexOf(leftExpression);
     return fieldIndex >= 0 && fieldIndex < assignment.getExpressionList().size() ? assignment.getExpressionList().get(fieldIndex) : null;
   }
 }

@@ -16,26 +16,28 @@
 
 package com.goide.intentions;
 
-import com.goide.inspections.GoInspectionUtil;
 import com.goide.psi.*;
 import com.goide.psi.impl.GoElementFactory;
 import com.goide.psi.impl.GoPsiImplUtil;
 import com.intellij.codeInsight.intention.BaseElementAtCaretIntentionAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.Pair;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
-import com.intellij.util.containers.MultiMap;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class GoMoveToStructInitializationIntention extends BaseElementAtCaretIntentionAction {
   public static final String NAME = "Move field assignment to struct initialization";
@@ -53,164 +55,240 @@ public class GoMoveToStructInitializationIntention extends BaseElementAtCaretInt
 
   @Override
   public boolean isAvailable(@NotNull Project project, Editor editor, @NotNull PsiElement element) {
-    if (!element.isValid() || !element.isWritable()) return false;
-    GoAssignmentStatement assignment = getValidAssignmentParent(element);
-    GoReferenceExpression selectedFieldReference = assignment != null ? getFieldReference(element, assignment) : null;
-    return selectedFieldReference != null && !getUninitializedSingleFieldReferences(assignment, selectedFieldReference).isEmpty();
+    Pair<List<GoReferenceExpression>, GoCompositeLit> pair = getFieldReferencesAndStructLiteral(element);
+    return !pair.first.isEmpty() && pair.second != null;
   }
 
-  @Override
-  public void invoke(@NotNull Project project, Editor editor, @NotNull PsiElement element) throws IncorrectOperationException {
-    if (!element.isValid() || !element.isWritable()) return;
+  @NotNull
+  private static Pair<List<GoReferenceExpression>, GoCompositeLit> getFieldReferencesAndStructLiteral(@NotNull PsiElement element) {
+    if (!element.isValid() || !element.isWritable()) return Pair.create(ContainerUtil.emptyList(), null);
     GoAssignmentStatement assignment = getValidAssignmentParent(element);
-    if (assignment == null) return;
-    GoReferenceExpression selectedFieldReference = getFieldReference(element, assignment);
-    if (selectedFieldReference == null) return;
-    GoCompositeLit structLiteral = getStructLiteralByReference(selectedFieldReference, assignment);
-    if (structLiteral == null) return;
-    moveFields(getUninitializedSingleFieldReferences(assignment, selectedFieldReference), structLiteral, project);
+    GoReferenceExpression selectedFieldReference = assignment != null ? getFieldReferenceExpression(element, assignment) : null;
+    if (selectedFieldReference == null) return Pair.create(ContainerUtil.emptyList(), null);
+    return Pair.create(getUninitializedSingleFieldReferences(assignment, selectedFieldReference),
+                       getStructLiteralByReference(selectedFieldReference, assignment));
   }
 
   @Nullable
   private static GoAssignmentStatement getValidAssignmentParent(@Nullable PsiElement element) {
-    return ObjectUtils.nullizeByCondition(PsiTreeUtil.getNonStrictParentOfType(element, GoAssignmentStatement.class),
-                                          assignment -> assignment == null ||
-                                                        !assignment.isValid() ||
-                                                        !isAssignmentEqualsSized(assignment));
+    GoAssignmentStatement assignment = PsiTreeUtil.getNonStrictParentOfType(element, GoAssignmentStatement.class);
+    return assignment != null && assignment.isValid() && isAssignmentEqualsSized(assignment) ? assignment : null;
   }
 
   private static boolean isAssignmentEqualsSized(@NotNull GoAssignmentStatement assignment) {
-    List<GoExpression> expressions = assignment.getExpressionList();
-    return assignment.getLeftHandExprList().getExpressionList().size() == expressions.size() &&
-           expressions.stream().allMatch(e -> GoInspectionUtil.getExpressionResultCount(e) == 1);
+    return getLeftHandElements(assignment).size() == assignment.getExpressionList().size();
   }
 
   @Nullable
-  private static GoReferenceExpression getFieldReference(@NotNull PsiElement selectedElement,
-                                                         @NotNull GoAssignmentStatement assignment) {
+  private static GoReferenceExpression getFieldReferenceExpression(@NotNull PsiElement selectedElement,
+                                                                   @NotNull GoAssignmentStatement assignment) {
     GoReferenceExpression selectedFieldReference = PsiTreeUtil.getTopmostParentOfType(selectedElement, GoReferenceExpression.class);
-    if (isFieldReference(selectedFieldReference)) {
-      return ObjectUtils.nullizeByCondition(selectedFieldReference, reference -> isValueAssignedInPreviousStatement(reference, assignment));
+    if (isFieldReferenceExpression(selectedFieldReference)) {
+      return ObjectUtils.nullizeByCondition(selectedFieldReference, reference -> isAssignedInPreviousStatement(reference, assignment));
     }
-
-    List<GoExpression> fieldReferences = ContainerUtil.filter(assignment.getLeftHandExprList().getExpressionList(),
-                                                              GoMoveToStructInitializationIntention::isFieldReference);
-    if (ContainerUtil.exists(fieldReferences, expression -> isValueAssignedInPreviousStatement(expression, assignment))) return null;
-
-    long distinctStructsCount = fieldReferences.stream()
-      .map(expression -> getQualifierName((GoReferenceExpression)expression))
-      .distinct().count();
-    return distinctStructsCount == 1 ? tryGetReference(ContainerUtil.getFirstItem(fieldReferences)) : null;
-  }
-
-  private static boolean isValueAssignedInPreviousStatement(@NotNull GoExpression expression,
-                                                            @NotNull GoAssignmentStatement assignment) {
-    GoReferenceExpression value = tryGetReference(GoPsiImplUtil.getExpressionValue(assignment, expression));
-    if (value == null) return false;
-    PsiElement previousElement = PsiTreeUtil.skipSiblingsBackward(assignment, PsiWhiteSpace.class);
-    if (previousElement instanceof GoSimpleStatement) {
-      GoShortVarDeclaration varDeclaration = ((GoSimpleStatement)previousElement).getShortVarDeclaration();
-      return varDeclaration != null &&
-             ContainerUtil.exists(varDeclaration.getVarDefinitionList(), definition -> isTextMatches(definition, value));
-    }
-    if (previousElement instanceof GoAssignmentStatement) {
-      return ContainerUtil.exists(((GoAssignmentStatement)previousElement).getLeftHandExprList().getExpressionList(),
-                                  leftExpression -> isTextMatches(leftExpression, value));
-    }
-    return false;
+    List<GoReferenceExpression> fieldReferenceExpressions = getFieldReferenceExpressions(assignment);
+    if (ContainerUtil.exists(fieldReferenceExpressions, expression -> isAssignedInPreviousStatement(expression, assignment))) return null;
+    long distinctStructsCount =
+      ContainerUtil.map2Set(fieldReferenceExpressions, GoMoveToStructInitializationIntention::getQualifierName).size();
+    return distinctStructsCount == 1 ? ContainerUtil.getFirstItem(fieldReferenceExpressions) : null;
   }
 
   @NotNull
-  private static List<GoExpression> getUninitializedSingleFieldReferences(@NotNull GoAssignmentStatement assignment,
-                                                                          @NotNull GoReferenceExpression selectedFieldReference) {
-    GoCompositeLit structLiteral = getStructLiteralByReference(selectedFieldReference, assignment);
-    String qualifierName = getQualifierName(selectedFieldReference);
-    if (structLiteral == null || qualifierName == null) return ContainerUtil.emptyList();
-    List<GoExpression> uninitializedFieldsReferences =
-      ContainerUtil.filter(assignment.getLeftHandExprList().getExpressionList(), expression ->
-        isUninitializedFieldReferenceByQualifier(expression, structLiteral, qualifierName) &&
-        !isValueAssignedInPreviousStatement(expression, assignment)
-      );
-    MultiMap<String, GoExpression> fieldReferencesByName =
-      ContainerUtil.groupBy(uninitializedFieldsReferences, expression -> getFieldName((GoReferenceExpression)expression));
-    return ContainerUtil.filter(uninitializedFieldsReferences,
-                                reference -> fieldReferencesByName.get(getFieldName((GoReferenceExpression)reference)).size() == 1);
+  private static List<GoReferenceExpression> getFieldReferenceExpressions(@NotNull GoAssignmentStatement assignment) {
+    return getLeftHandElements(assignment).stream()
+      .filter(GoMoveToStructInitializationIntention::isFieldReferenceExpression)
+      .map(GoReferenceExpression.class::cast)
+      .collect(Collectors.toList());
   }
 
-  private static void moveFields(@NotNull List<GoExpression> fields,
-                                 @NotNull GoCompositeLit structLiteral,
-                                 @NotNull Project project) {
-    GoAssignmentStatement assignment = getValidAssignmentParent(ContainerUtil.getFirstItem(fields));
+  @Contract("null -> false")
+  private static boolean isFieldReferenceExpression(@Nullable PsiElement element) {
+    return element instanceof GoReferenceExpression && isFieldDefinition(((GoReferenceExpression)element).resolve());
+  }
+
+  @Contract("null -> false")
+  private static boolean isFieldDefinition(@Nullable PsiElement element) {
+    return element instanceof GoFieldDefinition || element instanceof GoAnonymousFieldDefinition;
+  }
+
+  private static boolean isAssignedInPreviousStatement(@NotNull GoExpression referenceExpression,
+                                                       @NotNull GoAssignmentStatement assignment) {
+    GoReferenceExpression rightExpression = tryGetReferenceExpression(GoPsiImplUtil.getRightExpression(referenceExpression, assignment));
+    GoStatement previousElement = rightExpression != null ? PsiTreeUtil.getPrevSiblingOfType(assignment, GoStatement.class) : null;
+    return previousElement != null &&
+           ContainerUtil.exists(getLeftHandElements(previousElement), element -> isTextMatches(element, rightExpression));
+  }
+
+  private static boolean isTextMatches(@NotNull PsiElement first, @NotNull PsiElement second) {
+    return first.getText().equals(second.getText());
+  }
+
+  @Contract("null -> null")
+  private static GoReferenceExpression tryGetReferenceExpression(@Nullable GoExpression expression) {
+    return ObjectUtils.tryCast(expression, GoReferenceExpression.class);
+  }
+
+  @NotNull
+  private static List<GoReferenceExpression> getUninitializedSingleFieldReferences(@NotNull GoAssignmentStatement assignment,
+                                                                                   @NotNull GoReferenceExpression fieldReferenceExpression) {
+    GoCompositeLit structLiteral = getStructLiteralByReference(fieldReferenceExpression, assignment);
+    String qualifierName = getQualifierName(fieldReferenceExpression);
+    if (structLiteral == null || qualifierName == null) return ContainerUtil.emptyList();
+
+    List<GoReferenceExpression> uninitializedFieldReferencesByQualifier =
+      ContainerUtil.filter(getUninitializedFieldReferenceExpressions(assignment, structLiteral),
+                           expression -> qualifierName.equals(getQualifierName(expression)));
+    Map<String, Integer> identifierNameCounts = getIdentifierNameCounts(uninitializedFieldReferencesByQualifier);
+    return ContainerUtil
+      .filter(uninitializedFieldReferencesByQualifier, reference -> identifierNameCounts.get(getIdentifierName(reference)) == 1);
+  }
+
+  @Nullable
+  private static String getQualifierName(@NotNull GoReferenceExpression reference) {
+    GoReferenceExpression qualifier = reference.getQualifier();
+    return qualifier != null ? qualifier.getText() : null;
+  }
+
+  @Nullable
+  private static GoCompositeLit getStructLiteralByReference(@NotNull GoReferenceExpression fieldReferenceExpression,
+                                                            @NotNull GoAssignmentStatement assignment) {
+    GoStatement previousStatement = PsiTreeUtil.getPrevSiblingOfType(assignment, GoStatement.class);
+    if (previousStatement instanceof GoSimpleStatement) {
+      return getStructLiteral(fieldReferenceExpression, (GoSimpleStatement)previousStatement);
+    }
+    if (previousStatement instanceof GoAssignmentStatement) {
+      return getStructLiteral(fieldReferenceExpression, (GoAssignmentStatement)previousStatement);
+    }
+    return null;
+  }
+
+
+  @Nullable
+  private static GoCompositeLit getStructLiteral(@NotNull GoReferenceExpression fieldReferenceExpression,
+                                                 @NotNull GoSimpleStatement structDeclaration) {
+    GoShortVarDeclaration varDeclaration = structDeclaration.getShortVarDeclaration();
+    if (varDeclaration == null) return null;
+    GoVarDefinition structVarDefinition = ContainerUtil
+      .find(varDeclaration.getVarDefinitionList(), definition -> equalsByQualifiers(fieldReferenceExpression, definition));
+    return structVarDefinition != null && hasStructTypeWithField(structVarDefinition, fieldReferenceExpression) ?
+           ObjectUtils.tryCast(structVarDefinition.getValue(), GoCompositeLit.class) : null;
+  }
+
+  private static boolean equalsByQualifiers(@NotNull GoReferenceExpression referenceExpression,
+                                            @NotNull GoVarDefinition definition) {
+    return Comparing.equal(definition.getIdentifier().getText(), getQualifierName(referenceExpression));
+  }
+
+  @Nullable
+  private static GoCompositeLit getStructLiteral(@NotNull GoReferenceExpression fieldReferenceExpression,
+                                                 @NotNull GoAssignmentStatement structAssignment) {
+    GoExpression struct = ContainerUtil.find(structAssignment.getLeftHandExprList().getExpressionList(),
+                                             expression -> isStructByReferenceExpression(tryGetReferenceExpression(expression),
+                                                                                         fieldReferenceExpression));
+    return struct != null ? ObjectUtils.tryCast(GoPsiImplUtil.getRightExpression(struct, structAssignment), GoCompositeLit.class) : null;
+  }
+
+  private static boolean isStructByReferenceExpression(@Nullable GoReferenceExpression structReferenceExpression,
+                                                       @NotNull GoReferenceExpression fieldReference) {
+    PsiElement structDefinition = structReferenceExpression != null ? structReferenceExpression.resolve() : null;
+    GoVarDefinition structVarDefinition = ObjectUtils.tryCast(structDefinition, GoVarDefinition.class);
+    return structVarDefinition != null &&
+           equalsByQualifiers(fieldReference, structVarDefinition) &&
+           hasStructTypeWithField(structVarDefinition, fieldReference);
+  }
+
+  private static boolean hasStructTypeWithField(@NotNull GoVarDefinition structVarDefinition,
+                                                @NotNull GoReferenceExpression fieldReferenceExpression) {
+    GoStructType structType = getStructType(structVarDefinition);
+    return structType != null && hasFieldByName(structType, getIdentifierName(fieldReferenceExpression));
+  }
+
+  private static boolean hasFieldByName(@NotNull GoStructType struct, @NotNull String name) {
+    return !GoPsiImplUtil.goTraverser().withRoot(struct).traverse()
+      .filter(element -> isFieldDefinition(element) && name.equals(((GoNamedElement)element).getName()))
+      .isEmpty();
+  }
+
+  @Nullable
+  private static GoStructType getStructType(@NotNull GoVarDefinition structVarDefinition) {
+    GoType varType = structVarDefinition.getGoType(null);
+    GoType type = varType != null ? varType.getUnderlyingType() : null;
+    return ObjectUtils.tryCast(type, GoStructType.class);
+  }
+
+  private static boolean hasFieldName(@NotNull GoElement field, @NotNull String name) {
+    GoKey fieldName = field.getKey();
+    return fieldName != null && fieldName.getFieldName() != null && name.equals(fieldName.getFieldName().getText());
+  }
+
+  @NotNull
+  private static List<GoReferenceExpression> getUninitializedFieldReferenceExpressions(@NotNull GoAssignmentStatement assignment,
+                                                                                       @NotNull GoCompositeLit structLiteral) {
+    return ContainerUtil.filter(getFieldReferenceExpressions(assignment),
+                                expression -> isUninitializedFieldReferenceExpression(expression, structLiteral) &&
+                                              !isAssignedInPreviousStatement(expression, assignment));
+  }
+
+  @Contract("null, _-> false")
+  private static boolean isUninitializedFieldReferenceExpression(@Nullable GoReferenceExpression fieldReferenceExpression,
+                                                                 @NotNull GoCompositeLit structLiteral) {
+    if (fieldReferenceExpression == null) return false;
+    GoLiteralValue literalValue = structLiteral.getLiteralValue();
+    String fieldName = getIdentifierName(fieldReferenceExpression);
+    return literalValue != null &&
+           isFieldDefinition(fieldReferenceExpression.resolve()) &&
+           !ContainerUtil.exists(literalValue.getElementList(), element -> hasFieldName(element, fieldName));
+  }
+
+  @NotNull
+  private static Map<String, Integer> getIdentifierNameCounts(@NotNull List<GoReferenceExpression> fieldReferenceExpressions) {
+    return ContainerUtil.groupBy(fieldReferenceExpressions, GoMoveToStructInitializationIntention::getIdentifierName).entrySet().stream()
+      .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+  }
+
+  @NotNull
+  private static String getIdentifierName(@NotNull GoReferenceExpression fieldReferenceExpression) {
+    return fieldReferenceExpression.getIdentifier().getText();
+  }
+
+  @NotNull
+  private static Collection<? extends PsiElement> getLeftHandElements(@NotNull GoStatement statement) {
+    if (statement instanceof GoSimpleStatement) {
+      GoShortVarDeclaration varDeclaration = ((GoSimpleStatement)statement).getShortVarDeclaration();
+      return varDeclaration != null ? varDeclaration.getVarDefinitionList() : ContainerUtil.emptyList();
+    }
+    if (statement instanceof GoAssignmentStatement) {
+      return ((GoAssignmentStatement)statement).getLeftHandExprList().getExpressionList();
+    }
+    return ContainerUtil.emptyList();
+  }
+
+  @Override
+  public void invoke(@NotNull Project project, Editor editor, @NotNull PsiElement element) throws IncorrectOperationException {
+    Pair<List<GoReferenceExpression>, GoCompositeLit> pair = getFieldReferencesAndStructLiteral(element);
+    if (pair.first == null || pair.first.isEmpty()) return;
+    moveFieldReferenceExpressions(pair.first, pair.second, project);
+  }
+
+  private static void moveFieldReferenceExpressions(@NotNull List<GoReferenceExpression> fieldReferenceExpressions,
+                                                    @NotNull GoCompositeLit structLiteral,
+                                                    @NotNull Project project) {
+    GoAssignmentStatement assignment = getValidAssignmentParent(ContainerUtil.getFirstItem(fieldReferenceExpressions));
     if (assignment == null) return;
 
     GoLiteralValue literalValue = structLiteral.getLiteralValue();
     if (literalValue == null) return;
 
-    for (GoExpression expression : fields) {
-      GoReferenceExpression fieldReference = tryGetReference(expression);
-      if (!isFieldReference(fieldReference)) continue;
+    for (GoExpression expression : fieldReferenceExpressions) {
+      GoReferenceExpression fieldReferenceExpression = tryGetReferenceExpression(expression);
+      if (!isFieldReferenceExpression(fieldReferenceExpression)) continue;
 
-      GoExpression fieldValue = GoPsiImplUtil.getExpressionValue(assignment, fieldReference);
+      GoExpression fieldValue = GoPsiImplUtil.getRightExpression(fieldReferenceExpression, assignment);
       if (fieldValue == null) continue;
 
-      GoPsiImplUtil.deleteExpressionFromAssignment(assignment, fieldReference);
-      addFieldDefinition(literalValue, getFieldName(fieldReference), fieldValue.getText(), project);
+      GoPsiImplUtil.deleteExpressionFromAssignment(assignment, fieldReferenceExpression);
+      addFieldDefinition(literalValue, getIdentifierName(fieldReferenceExpression), fieldValue.getText(), project);
     }
-  }
-
-  @Nullable
-  private static GoCompositeLit getStructLiteralByReference(@NotNull GoReferenceExpression fieldReference,
-                                                            @NotNull GoAssignmentStatement assignment) {
-    PsiElement previousElement = PsiTreeUtil.skipSiblingsBackward(assignment, PsiWhiteSpace.class);
-    if (previousElement instanceof GoSimpleStatement) {
-      return getStructLiteral(fieldReference, (GoSimpleStatement)previousElement);
-    }
-    if (previousElement instanceof GoAssignmentStatement) {
-      return getStructLiteral(fieldReference, (GoAssignmentStatement)previousElement);
-    }
-    return null;
-  }
-
-  @Nullable
-  private static GoCompositeLit getStructLiteral(@NotNull GoReferenceExpression fieldReference,
-                                                 @NotNull GoSimpleStatement structDeclaration) {
-    GoShortVarDeclaration varDeclaration = structDeclaration.getShortVarDeclaration();
-    if (varDeclaration == null) return null;
-    GoVarDefinition structVarDefinition =
-      ContainerUtil.find(varDeclaration.getVarDefinitionList(),
-                         definition -> GoPsiImplUtil.getName(definition).equals(getQualifierName(fieldReference)));
-    return structVarDefinition != null && isStructWithField(fieldReference, structVarDefinition) ?
-           ObjectUtils.tryCast(structVarDefinition.getValue(), GoCompositeLit.class) : null;
-  }
-
-  @Nullable
-  private static GoCompositeLit getStructLiteral(@NotNull GoReferenceExpression fieldReference,
-                                                 @NotNull GoAssignmentStatement structAssignment) {
-    GoExpression struct = ContainerUtil.find(structAssignment.getLeftHandExprList().getExpressionList(),
-                                             expression -> isStructByReference(tryGetReference(expression), fieldReference));
-    return struct != null ? ObjectUtils.tryCast(GoPsiImplUtil.getExpressionValue(structAssignment, struct), GoCompositeLit.class) : null;
-  }
-
-  private static boolean isStructByReference(@Nullable GoReferenceExpression structReference,
-                                             @NotNull GoReferenceExpression fieldReference) {
-    PsiElement structDefinition = structReference != null ? structReference.resolve() : null;
-    GoVarDefinition structVarDefinition = ObjectUtils.tryCast(structDefinition, GoVarDefinition.class);
-    return structVarDefinition != null &&
-           GoPsiImplUtil.getName(structVarDefinition).equals(getQualifierName(fieldReference)) &&
-           isStructWithField(fieldReference, structVarDefinition);
-  }
-
-  @Contract("null, _, _ -> false")
-  private static boolean isUninitializedFieldReferenceByQualifier(@Nullable GoExpression expression,
-                                                                  @NotNull GoCompositeLit structLiteral,
-                                                                  @NotNull String qualifierName) {
-    GoReferenceExpression fieldReference = tryGetReference(expression);
-    if (fieldReference == null) return false;
-    GoLiteralValue literalValue = structLiteral.getLiteralValue();
-    String fieldName = getFieldName(fieldReference);
-    return literalValue != null &&
-           isFieldDefinition(fieldReference.resolve()) && qualifierName.equals(getQualifierName(fieldReference)) &&
-           !ContainerUtil.exists(literalValue.getElementList(), element -> hasFieldName(element, fieldName));
   }
 
   private static void addFieldDefinition(@NotNull GoLiteralValue literalValue,
@@ -226,58 +304,5 @@ public class GoMoveToStructInitializationIntention extends BaseElementAtCaretInt
       lastField.add(GoElementFactory.createComma(project));
       lastField.add(newField);
     }
-  }
-
-  @Nullable
-  private static GoStructType getStructType(@NotNull GoVarDefinition structVarDefinition) {
-    GoType varType = structVarDefinition.getGoType(null);
-    GoType type = varType != null ? varType.getUnderlyingType() : null;
-    return ObjectUtils.tryCast(type, GoStructType.class);
-  }
-
-  private static boolean hasFieldByName(@NotNull GoStructType struct, @NotNull String name) {
-    return !GoPsiImplUtil.goTraverser().withRoot(struct).traverse()
-      .filter(element -> isFieldDefinition(element) && name.equals(((GoNamedElement)element).getName()))
-      .isEmpty();
-  }
-
-  private static boolean isStructWithField(@NotNull GoReferenceExpression fieldReference, @NotNull GoVarDefinition structVarDefinition) {
-    GoStructType structType = getStructType(structVarDefinition);
-    return structType != null && hasFieldByName(structType, getFieldName(fieldReference));
-  }
-
-  private static boolean hasFieldName(@NotNull GoElement field, @NotNull String name) {
-    GoKey fieldName = field.getKey();
-    return fieldName != null && fieldName.getFieldName() != null && name.equals(fieldName.getFieldName().getText());
-  }
-
-  @Nullable
-  private static String getQualifierName(@NotNull GoReferenceExpression reference) {
-    GoReferenceExpression qualifier = reference.getQualifier();
-    return qualifier != null ? qualifier.getText() : null;
-  }
-
-  @Contract("null -> false")
-  private static boolean isFieldReference(@Nullable GoExpression expression) {
-    return expression instanceof GoReferenceExpression && isFieldDefinition(((GoReferenceExpression)expression).resolve());
-  }
-
-  @Contract("null -> false")
-  private static boolean isFieldDefinition(@Nullable PsiElement element) {
-    return element instanceof GoFieldDefinition || element instanceof GoAnonymousFieldDefinition;
-  }
-
-  @Contract("null -> null")
-  private static GoReferenceExpression tryGetReference(@Nullable GoExpression expression) {
-    return ObjectUtils.tryCast(expression, GoReferenceExpression.class);
-  }
-
-  private static boolean isTextMatches(@NotNull PsiElement first, @NotNull PsiElement second) {
-    return first.getText().equals(second.getText());
-  }
-
-  @NotNull
-  private static String getFieldName(@NotNull GoReferenceExpression fieldReference) {
-    return fieldReference.getIdentifier().getText();
   }
 }
