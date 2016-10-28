@@ -266,4 +266,10 @@ public class GoElementFactory {
     GoFile file = createFileFromText(project, "package a; type " + name + " " + type.getText());
     return PsiTreeUtil.findChildOfType(file, GoTypeDeclaration.class);
   }
+
+  @NotNull
+  public static GoCompositeLit createCompositeLit(@NotNull Project project, @NotNull GoType type) {
+    GoFile file = createFileFromText(project, "package a; var _ = " + type.getText() + "{}");
+    return PsiTreeUtil.findChildOfType(file, GoCompositeLit.class);
+  }
 }
