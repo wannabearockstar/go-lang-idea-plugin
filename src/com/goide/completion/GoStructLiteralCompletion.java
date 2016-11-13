@@ -19,9 +19,7 @@ package com.goide.completion;
 import com.goide.psi.*;
 import com.goide.psi.impl.GoPsiImplUtil;
 import com.intellij.psi.PsiElement;
-import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
-import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -61,8 +59,8 @@ class GoStructLiteralCompletion {
 
   @NotNull
   static Variants allowedVariants(@Nullable GoReferenceExpression structFieldReference) {
-    GoValue value = parent(structFieldReference, GoValue.class);
-    GoElement element = parent(value, GoElement.class);
+    GoValue value = GoPsiTreeUtil.getDirectParentOfType(structFieldReference, GoValue.class);
+    GoElement element = GoPsiTreeUtil.getDirectParentOfType(value, GoElement.class);
     if (element != null && element.getKey() != null) {
       return Variants.NONE;
     }
@@ -75,7 +73,7 @@ class GoStructLiteralCompletion {
     boolean hasValueInitializers = false;
     boolean hasFieldValueInitializers = false;
 
-    GoLiteralValue literalValue = parent(element, GoLiteralValue.class);
+    GoLiteralValue literalValue = GoPsiTreeUtil.getDirectParentOfType(element, GoLiteralValue.class);
     List<GoElement> fieldInitializers = literalValue != null ? literalValue.getElementList() : Collections.emptyList();
     for (GoElement initializer : fieldInitializers) {
       if (initializer == element) {
@@ -104,10 +102,5 @@ class GoStructLiteralCompletion {
       PsiElement identifier = fieldName != null ? fieldName.getIdentifier() : null;
       return identifier != null ? identifier.getText() : null;
     });
-  }
-
-  @Contract("null,_->null")
-  private static <T> T parent(@Nullable PsiElement of, @NotNull Class<T> parentClass) {
-    return ObjectUtils.tryCast(of != null ? of.getParent() : null, parentClass);
   }
 }

@@ -569,11 +569,12 @@ public class GoPsiImplUtil {
   @Nullable
   public static GoValue getParentGoValue(@NotNull PsiElement element) {
     PsiElement place = element;
-    while ((place = PsiTreeUtil.getParentOfType(place, GoLiteralValue.class)) != null) {
+    do {
       if (place.getParent() instanceof GoValue) {
         return (GoValue)place.getParent();
       }
     }
+    while ((place = PsiTreeUtil.getParentOfType(place, GoLiteralValue.class)) != null);
     return null;
   }
 
@@ -1468,7 +1469,8 @@ public class GoPsiImplUtil {
     return getByIndex(((GoConstSpec)parent).getExpressionList(), index);
   }
 
-  private static <T> T getByIndex(@NotNull List<T> list, int index) {
+  @Nullable
+  public static <T> T getByIndex(@NotNull List<T> list, int index) {
     return 0 <= index && index < list.size() ? list.get(index) : null;
   }
 

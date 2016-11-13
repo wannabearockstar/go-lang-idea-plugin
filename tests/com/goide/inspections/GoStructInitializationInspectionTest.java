@@ -38,26 +38,45 @@ public class GoStructInitializationInspectionTest extends GoQuickFixTestBase {
     super.tearDown();
   }
 
-  public void testUninitializedStructWithLocal() {
-    doTest(true);
-  }
+  public void testUninitializedStructWithLocal()    { doHighlightTest(true); }
+  public void testMultipleFieldsOneline()           { doHighlightTest(true); }
+  public void testWrongOrder()                      { doHighlightTest(true); }
+  public void testExceedElementsCountWithNamed()    { doHighlightTest(true); }
+  public void testInvalidKeysNumber()               { doHighlightTest(true); }
+  public void testUninitializedStructImportedOnly() { doHighlightTest(false); }
 
-  public void testUninitializedStructImportedOnly() {
-    doTest(false);
-  }
+  public void testLiteralValue()                    { doQuickfixTest(); }
+  public void testLiteralValueWithoutCompositeLit() { doQuickfixTest(); }
+  public void testExceedElementsCountOnlyUnnamed()  { doQuickfixTest(); }
+  public void testInnerAnonStruct()                 { doQuickfixTest(); }
+  public void testAnonField()                       { doQuickfixTest(); }
+  public void testQuickFix()                        { doQuickfixTest(); }
+  public void testInnerStruct()                     { doQuickfixTest(); }
+  public void testOnelineQuickfix()                 { doQuickfixTest(); }
+  public void testVarDeclaration()                  { doQuickfixTest(); }
+  public void testNestedLiteral()                   { doQuickfixTest(); }
+  public void testInnerLiteral()                    { doQuickfixTest(); }
+  public void testInnerAnonLiteral()                { doQuickfixTest(); }
+  public void testInnerLiteralMap()                 { doQuickfixTest(); }
+  public void testInnerLiteralFieldWithKey()        { doQuickfixTest(); }
+  public void testMultipleInnerLiterals()           { doQuickfixTest(); }
+  public void testInnerLiteralWithoutType()         { doQuickfixTest(); }
 
-  public void testQuickFix() {
-    doTest(GoStructInitializationInspection.REPLACE_WITH_NAMED_STRUCT_FIELD_FIX_NAME, true);
-  }
 
-  private long doTest(boolean allowLocalStructs) {
+
+  private long doHighlightTest(boolean allowLocalStructs) {
     myInspectionTool.reportLocalStructs = allowLocalStructs;
     return myFixture.testHighlighting(true, false, true, getTestName(true) + ".go");
+  }
+
+  private void doQuickfixTest() {
+    myInspectionTool.reportLocalStructs = true;
+    doTest(GoStructInitializationInspection.REPLACE_WITH_NAMED_STRUCT_FIELD_FIX_NAME, true);
   }
 
   @NotNull
   @Override
   protected String getBasePath() {
-    return "inspections/go-struct-initialization";
+    return "inspections/struct-initialization";
   }
 }

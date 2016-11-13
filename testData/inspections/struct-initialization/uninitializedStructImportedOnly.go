@@ -114,7 +114,7 @@ func _() {
 
 	// bad defs
 	_ = io.LimitedReader{
-		<weak_warning descr="Unnamed field initialization">nil</weak_warning>,
+	<weak_warning descr="Unnamed field initialization">nil</weak_warning>,
 	}
 	_ = os.LinkError{
 		<weak_warning descr="Unnamed field initialization">"string"</weak_warning>,

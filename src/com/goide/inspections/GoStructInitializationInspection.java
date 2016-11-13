@@ -22,25 +22,32 @@ import com.goide.psi.impl.GoPsiImplUtil;
 import com.goide.util.GoUtil;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.ui.SingleCheckboxOptionsPanel;
-import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.ObjectUtils;
 import org.jdom.Element;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.List;
 
+import static com.intellij.util.containers.ContainerUtil.*;
+import static java.lang.Math.min;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.IntStream.range;
+
 public class GoStructInitializationInspection extends GoInspectionBase {
-  public static final String REPLACE_WITH_NAMED_STRUCT_FIELD_FIX_NAME = "Replace with named struct field";
+  public static final String REPLACE_WITH_NAMED_STRUCT_FIELD_FIX_NAME = "Replace with named struct fields";
+  private static final GoReplaceWithNamedStructFieldQuickFix QUICK_FIX = new GoReplaceWithNamedStructFieldQuickFix();
   public boolean reportLocalStructs;
   /**
-   * @deprecated use reportLocalStructs
+   * @deprecated use {@link #reportLocalStructs}
    */
   @SuppressWarnings("WeakerAccess") public Boolean reportImportedStructs;
 
@@ -49,17 +56,81 @@ public class GoStructInitializationInspection extends GoInspectionBase {
   protected GoVisitor buildGoVisitor(@NotNull ProblemsHolder holder, @NotNull LocalInspectionToolSession session) {
     return new GoVisitor() {
       @Override
-      public void visitLiteralValue(@NotNull GoLiteralValue o) {
-        if (PsiTreeUtil.getParentOfType(o, GoReturnStatement.class, GoShortVarDeclaration.class, GoAssignmentStatement.class) == null) {
-          return;
-        }
-        PsiElement parent = o.getParent();
-        GoType refType = GoPsiImplUtil.getLiteralType(parent, false);
-        if (refType instanceof GoStructType) {
-          processStructType(holder, o, (GoStructType)refType);
+      public void visitLiteralValue(@NotNull GoLiteralValue literalValue) {
+        GoStructType structType = getLiteralStructType(literalValue);
+        if (structType == null || !isStructImportedOrLocalAllowed(structType, literalValue)) return;
+
+        List<GoElement> elements = literalValue.getElementList();
+        List<GoNamedElement> definitions = getFieldDefinitions(structType);
+
+        if (!areElementsKeysMatchesDefinitions(elements, definitions)) return;
+        registerProblemsForElementsWithoutKeys(elements, definitions.size());
+      }
+
+      private void registerProblemsForElementsWithoutKeys(@NotNull List<GoElement> elements, int definitionsCount) {
+        for (int i = 0; i < min(elements.size(), definitionsCount); i++) {
+          if (elements.get(i).getKey() != null) continue;
+          holder.registerProblem(elements.get(i), "Unnamed field initialization", ProblemHighlightType.WEAK_WARNING, QUICK_FIX);
         }
       }
     };
+  }
+
+  @Contract("null -> null")
+  private static GoStructType getLiteralStructType(@Nullable GoLiteralValue literalValue) {
+    GoCompositeLit parentLit = GoPsiTreeUtil.getDirectParentOfType(literalValue, GoCompositeLit.class);
+    if (parentLit != null && !isStructLit(parentLit)) return null;
+
+    GoStructType litType = ObjectUtils.tryCast(GoPsiImplUtil.getLiteralType(literalValue, parentLit == null), GoStructType.class);
+    GoNamedElement definition = getFieldDefinition(GoPsiTreeUtil.getDirectParentOfType(literalValue, GoValue.class));
+    return definition != null && litType != null ? getUnderlyingStructType(definition.getGoType(null)) : litType;
+  }
+
+  @Nullable
+  private static GoNamedElement getFieldDefinition(@Nullable GoValue value) {
+    GoKey key = PsiTreeUtil.getPrevSiblingOfType(value, GoKey.class);
+    GoFieldName fieldName = key != null ? key.getFieldName() : null;
+    PsiElement field = fieldName != null ? fieldName.resolve() : null;
+    return field instanceof GoAnonymousFieldDefinition || field instanceof GoFieldDefinition ? ObjectUtils
+      .tryCast(field, GoNamedElement.class) : null;
+  }
+
+  @Nullable
+  @Contract("null -> null")
+  private static GoStructType getUnderlyingStructType(@Nullable GoType type) {
+    return type != null ? ObjectUtils.tryCast(type.getUnderlyingType(), GoStructType.class) : null;
+  }
+
+  private static boolean isStructLit(@NotNull GoCompositeLit compositeLit) {
+    return getUnderlyingStructType(compositeLit.getGoType(null)) != null;
+  }
+
+  private boolean isStructImportedOrLocalAllowed(@NotNull GoStructType structType, @NotNull GoLiteralValue literalValue) {
+    return reportLocalStructs || !GoUtil.inSamePackage(structType.getContainingFile(), literalValue.getContainingFile());
+  }
+
+  private static boolean areElementsKeysMatchesDefinitions(@NotNull List<GoElement> elements, @NotNull List<GoNamedElement> definitions) {
+    return range(0, elements.size()).allMatch(i -> isNullOrNamesEqual(elements.get(i).getKey(), GoPsiImplUtil.getByIndex(definitions, i)));
+  }
+
+  @Contract("null, _ -> true; !null, null -> false")
+  private static boolean isNullOrNamesEqual(@Nullable GoKey key, @Nullable GoNamedElement elementToCompare) {
+    return key == null || elementToCompare != null && Comparing.equal(key.getText(), elementToCompare.getName());
+  }
+
+  @NotNull
+  private static List<GoNamedElement> getFieldDefinitions(@Nullable GoStructType type) {
+    return type != null ? type.getFieldDeclarationList().stream()
+      .flatMap(declaration -> getFieldDefinitions(declaration).stream())
+      .collect(toList()) : emptyList();
+  }
+
+  @NotNull
+  private static List<GoNamedElement> getFieldDefinitions(@NotNull GoFieldDeclaration declaration) {
+    GoNamedElement anonymousDefinition = ObjectUtils.tryCast(declaration.getAnonymousFieldDefinition(), GoNamedElement.class);
+    return anonymousDefinition != null
+           ? list(anonymousDefinition)
+           : map(declaration.getFieldDefinitionList(), definition -> ObjectUtils.tryCast(definition, GoNamedElement.class));
   }
 
   @Override
@@ -67,49 +138,32 @@ public class GoStructInitializationInspection extends GoInspectionBase {
     return new SingleCheckboxOptionsPanel("Report for local type definitions as well", this, "reportLocalStructs");
   }
 
-  private void processStructType(@NotNull ProblemsHolder holder, @NotNull GoLiteralValue element, @NotNull GoStructType structType) {
-    if (reportLocalStructs || !GoUtil.inSamePackage(structType.getContainingFile(), element.getContainingFile())) {
-      processLiteralValue(holder, element, structType.getFieldDeclarationList());
-    }
-  }
-
-  private static void processLiteralValue(@NotNull ProblemsHolder holder,
-                                          @NotNull GoLiteralValue o,
-                                          @NotNull List<GoFieldDeclaration> fields) {
-    List<GoElement> vals = o.getElementList();
-    for (int elemId = 0; elemId < vals.size(); elemId++) {
-      ProgressManager.checkCanceled();
-      GoElement element = vals.get(elemId);
-      if (element.getKey() == null && elemId < fields.size()) {
-        String structFieldName = getFieldName(fields.get(elemId));
-        LocalQuickFix[] fixes = structFieldName != null ? new LocalQuickFix[]{new GoReplaceWithNamedStructFieldQuickFix(structFieldName)}
-                                                        : LocalQuickFix.EMPTY_ARRAY;
-        holder.registerProblem(element, "Unnamed field initialization", ProblemHighlightType.GENERIC_ERROR_OR_WARNING, fixes);
-      }
-    }
-  }
-
-  @Nullable
-  private static String getFieldName(@NotNull GoFieldDeclaration declaration) {
-    List<GoFieldDefinition> list = declaration.getFieldDefinitionList();
-    GoFieldDefinition fieldDefinition = ContainerUtil.getFirstItem(list);
-    return fieldDefinition != null ? fieldDefinition.getIdentifier().getText() : null;
-  }
-
   private static class GoReplaceWithNamedStructFieldQuickFix extends LocalQuickFixBase {
-    private String myStructField;
 
-    public GoReplaceWithNamedStructFieldQuickFix(@NotNull String structField) {
+    public GoReplaceWithNamedStructFieldQuickFix() {
       super(REPLACE_WITH_NAMED_STRUCT_FIELD_FIX_NAME);
-      myStructField = structField;
     }
 
     @Override
     public void applyFix(@NotNull Project project, @NotNull ProblemDescriptor descriptor) {
-      PsiElement startElement = descriptor.getStartElement();
-      if (startElement instanceof GoElement) {
-        startElement.replace(GoElementFactory.createLiteralValueElement(project, myStructField, startElement.getText()));
-      }
+      PsiElement element = ObjectUtils.tryCast(descriptor.getStartElement(), GoElement.class);
+      GoLiteralValue literal = element != null && element.isValid() ? PsiTreeUtil.getParentOfType(element, GoLiteralValue.class) : null;
+
+      List<GoElement> elements = literal != null ? literal.getElementList() : emptyList();
+      List<GoNamedElement> definitions = getFieldDefinitions(getLiteralStructType(literal));
+      if (!areElementsKeysMatchesDefinitions(elements, definitions)) return;
+      addKeysToElements(project, elements, definitions);
+    }
+  }
+
+  private static void addKeysToElements(@NotNull Project project,
+                                        @NotNull List<GoElement> elements,
+                                        @NotNull List<GoNamedElement> definitions) {
+    for (int i = 0; i < min(elements.size(), definitions.size()); i++) {
+      GoElement element = elements.get(i);
+      String fieldDefinitionName = definitions.get(i).getName();
+      GoValue value = fieldDefinitionName != null && element.getKey() == null ? element.getValue() : null;
+      if (value != null) element.replace(GoElementFactory.createLiteralValueElement(project, fieldDefinitionName, value.getText()));
     }
   }
 

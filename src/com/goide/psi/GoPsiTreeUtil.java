@@ -26,8 +26,10 @@ import com.intellij.psi.impl.source.tree.TreeUtil;
 import com.intellij.psi.stubs.StubElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtilCore;
+import com.intellij.util.ObjectUtils;
 import com.intellij.util.SmartList;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -154,6 +156,11 @@ public class GoPsiTreeUtil extends PsiTreeUtil {
       element = file.findElementAt(forward ? element.getTextRange().getEndOffset() : element.getTextRange().getStartOffset() - 1);
     }
     return element;
+  }
+
+  @Contract("null,_->null")
+  public static <T> T getDirectParentOfType(@Nullable PsiElement element, @NotNull Class<T> aClass) {
+    return element != null ? ObjectUtils.tryCast(element.getParent(), aClass) : null;
   }
 }
   
