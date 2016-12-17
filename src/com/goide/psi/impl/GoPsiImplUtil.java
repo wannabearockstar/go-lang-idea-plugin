@@ -1701,4 +1701,9 @@ public class GoPsiImplUtil {
     int fieldIndex = assignment.getLeftHandExprList().getExpressionList().indexOf(leftExpression);
     return getByIndex(assignment.getExpressionList(), fieldIndex);
   }
+
+  @Contract("null -> false")
+  public static boolean isFieldDefinition(@Nullable PsiElement element) {
+    return element instanceof GoFieldDefinition || element instanceof GoAnonymousFieldDefinition;
+  }
 }

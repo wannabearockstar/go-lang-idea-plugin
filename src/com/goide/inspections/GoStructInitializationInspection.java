@@ -37,7 +37,8 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.util.List;
 
-import static com.intellij.util.containers.ContainerUtil.*;
+import static com.intellij.util.containers.ContainerUtil.emptyList;
+import static com.intellij.util.containers.ContainerUtil.list;
 import static java.lang.Math.min;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.IntStream.range;
@@ -91,8 +92,7 @@ public class GoStructInitializationInspection extends GoInspectionBase {
     GoKey key = PsiTreeUtil.getPrevSiblingOfType(value, GoKey.class);
     GoFieldName fieldName = key != null ? key.getFieldName() : null;
     PsiElement field = fieldName != null ? fieldName.resolve() : null;
-    return field instanceof GoAnonymousFieldDefinition || field instanceof GoFieldDefinition ? ObjectUtils
-      .tryCast(field, GoNamedElement.class) : null;
+    return GoPsiImplUtil.isFieldDefinition(field) ? ObjectUtils.tryCast(field, GoNamedElement.class) : null;
   }
 
   @Nullable
@@ -126,11 +126,9 @@ public class GoStructInitializationInspection extends GoInspectionBase {
   }
 
   @NotNull
-  private static List<GoNamedElement> getFieldDefinitions(@NotNull GoFieldDeclaration declaration) {
-    GoNamedElement anonymousDefinition = ObjectUtils.tryCast(declaration.getAnonymousFieldDefinition(), GoNamedElement.class);
-    return anonymousDefinition != null
-           ? list(anonymousDefinition)
-           : map(declaration.getFieldDefinitionList(), definition -> ObjectUtils.tryCast(definition, GoNamedElement.class));
+  private static List<? extends GoNamedElement> getFieldDefinitions(@NotNull GoFieldDeclaration declaration) {
+    GoAnonymousFieldDefinition anonymousDefinition = declaration.getAnonymousFieldDefinition();
+    return anonymousDefinition != null ? list(anonymousDefinition) : declaration.getFieldDefinitionList();
   }
 
   @Override

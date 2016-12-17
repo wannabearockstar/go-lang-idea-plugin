@@ -106,12 +106,7 @@ public class GoMoveToStructInitializationIntention extends BaseElementAtCaretInt
 
   @Contract("null -> false")
   private static boolean isFieldReferenceExpression(@Nullable PsiElement element) {
-    return element instanceof GoReferenceExpression && isFieldDefinition(((GoReferenceExpression)element).resolve());
-  }
-
-  @Contract("null -> false")
-  private static boolean isFieldDefinition(@Nullable PsiElement element) {
-    return element instanceof GoFieldDefinition || element instanceof GoAnonymousFieldDefinition;
+    return element instanceof GoReferenceExpression && GoPsiImplUtil.isFieldDefinition(((GoReferenceExpression)element).resolve());
   }
 
   private static boolean isAssignedInPreviousStatement(@NotNull GoExpression referenceExpression,
@@ -182,7 +177,7 @@ public class GoMoveToStructInitializationIntention extends BaseElementAtCaretInt
                                                  @NotNull GoAssignmentStatement structAssignment) {
     GoVarDefinition varDefinition = ObjectUtils.tryCast(resolveQualifier(fieldReferenceExpression), GoVarDefinition.class);
     PsiElement field = fieldReferenceExpression.resolve();
-    if (varDefinition == null || !isFieldDefinition(field) || !hasStructTypeWithField(varDefinition, (GoNamedElement)field)) {
+    if (varDefinition == null || !GoPsiImplUtil.isFieldDefinition(field) || !hasStructTypeWithField(varDefinition, (GoNamedElement)field)) {
       return null;
     }
 
@@ -218,7 +213,7 @@ public class GoMoveToStructInitializationIntention extends BaseElementAtCaretInt
     if (fieldReferenceExpression == null) return false;
     GoLiteralValue literalValue = structLiteral.getLiteralValue();
     PsiElement resolve = fieldReferenceExpression.resolve();
-    return literalValue != null && isFieldDefinition(resolve) &&
+    return literalValue != null && GoPsiImplUtil.isFieldDefinition(resolve) &&
            !exists(literalValue.getElementList(), element -> isFieldInitialization(element, resolve));
   }
 
