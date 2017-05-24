@@ -39,6 +39,7 @@ public class GoAddStructFieldQuickFixTest extends GoQuickFixTestBase {
 
   public void testSimple()            { doTest(ADD_STRUCT_FIELD); }
   public void testWithoutElements()   { doTest(ADD_STRUCT_FIELD); }
+  public void testComplexType()       { doTest(ADD_STRUCT_FIELD); }
   public void testWithoutAssignment() { doTest(ADD_STRUCT_FIELD); }
   public void testBlank()             { doTestNoFix(ADD_STRUCT_FIELD, true); }
 }

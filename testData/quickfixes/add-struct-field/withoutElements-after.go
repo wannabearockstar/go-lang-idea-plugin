@@ -6,5 +6,5 @@ type S struct {
 
 func main() {
 	s := S{}
-	s.aa<caret> = "aa"
+	s.aa = "aa"
 }

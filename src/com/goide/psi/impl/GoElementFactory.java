@@ -191,7 +191,7 @@ public class GoElementFactory {
 
   @NotNull
   public static GoForStatement createForStatement(@NotNull Project project, @NotNull String text) {
-    GoFile file = createFileFromText(project, "package a; func a() {\n for {\n" + text + "\n}\n}");
+    GoFile file = createFileFromText(project, "package a; func a() {\n for {\n" + text +  "\n}\n}");
     return PsiTreeUtil.findChildOfType(file, GoForStatement.class);
   }
 
@@ -265,10 +265,5 @@ public class GoElementFactory {
   public static GoTypeDeclaration createTypeDeclaration(@NotNull Project project, @NotNull String name, @NotNull GoType type) {
     GoFile file = createFileFromText(project, "package a; type " + name + " " + type.getText());
     return PsiTreeUtil.findChildOfType(file, GoTypeDeclaration.class);
-  }
-
-  public static GoFieldDeclaration createFieldDeclaration(@NotNull Project project, @NotNull String fieldText, @NotNull String typeText) {
-    GoFile file = createFileFromText(project, "package a; var _ = struct { " + fieldText + " " + typeText + " }");
-    return PsiTreeUtil.findChildOfType(file, GoFieldDeclaration.class);
   }
 }

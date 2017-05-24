@@ -3,10 +3,10 @@ package main
 type S struct {
 	bb interface{}
 	cc interface{}
-	aa interface{}
+	aa S
 }
 
 func main() {
 	s := S{}
-	s.aa
+	s.aa = S{}
 }

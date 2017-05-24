@@ -20,7 +20,6 @@ import com.goide.GoTypes;
 import com.goide.codeInsight.imports.GoImportPackageQuickFix;
 import com.goide.inspections.GoInspectionBase;
 import com.goide.psi.*;
-import com.goide.psi.impl.GoPsiImplUtil;
 import com.goide.psi.impl.GoReference;
 import com.intellij.codeInsight.highlighting.ReadWriteAccessDetector;
 import com.intellij.codeInspection.LocalInspectionToolSession;
@@ -79,7 +78,7 @@ public class GoUnresolvedReferenceInspection extends GoInspectionBase {
           GoType type = qualifier != null ? qualifier.getGoType(null) : null;
           GoStructType structType = type != null ? ObjectUtils.tryCast(type.getUnderlyingType(), GoStructType.class) : null;
           if (!"_".equals(reference.getCanonicalText()) && structType != null) {
-            fixes = new LocalQuickFix[]{new GoAddStructFieldFix(reference.getCanonicalText(), getTypeName(o), structType)};
+            fixes = new LocalQuickFix[]{new GoAddStructFieldFix(o)};
           }
           else if (isProhibited(o, qualifier)) {
             fixes = createImportPackageFixes(o, reference, holder.isOnTheFly());
@@ -164,14 +163,6 @@ public class GoUnresolvedReferenceInspection extends GoInspectionBase {
         }
       }
     };
-  }
-
-  private static String getTypeName(GoReferenceExpression referenceExpression) {
-    GoAssignmentStatement assignment = PsiTreeUtil.getParentOfType(referenceExpression, GoAssignmentStatement.class);
-    if (assignment == null) return "interface {}";
-    GoExpression expression = GoPsiImplUtil.getRightExpression(assignment, referenceExpression);
-    GoType type = expression != null ? expression.getGoType(null) : null;
-    return type != null ? type.getText() : "interface {}";
   }
 
   @NotNull
