@@ -20,6 +20,7 @@ import com.goide.GoTypes;
 import com.goide.codeInsight.imports.GoImportPackageQuickFix;
 import com.goide.inspections.GoInspectionBase;
 import com.goide.psi.*;
+import com.goide.psi.impl.GoPsiImplUtil;
 import com.goide.psi.impl.GoReference;
 import com.intellij.codeInsight.highlighting.ReadWriteAccessDetector;
 import com.intellij.codeInspection.LocalInspectionToolSession;
@@ -33,6 +34,7 @@ import com.intellij.psi.ResolveResult;
 import com.intellij.psi.formatter.FormatterUtil;
 import com.intellij.psi.impl.source.resolve.reference.impl.providers.FileReference;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.ObjectUtils;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -74,7 +76,12 @@ public class GoUnresolvedReferenceInspection extends GoInspectionBase {
         }
         else if (reference.resolve() == null) {
           LocalQuickFix[] fixes = LocalQuickFix.EMPTY_ARRAY;
-          if (isProhibited(o, qualifier)) {
+          GoType type = qualifier != null ? qualifier.getGoType(null) : null;
+          GoStructType structType = type != null ? ObjectUtils.tryCast(type.getUnderlyingType(), GoStructType.class) : null;
+          if (!"_".equals(reference.getCanonicalText()) && structType != null) {
+            fixes = new LocalQuickFix[]{new GoAddStructFieldFix(reference.getCanonicalText(), getTypeName(o), structType)};
+          }
+          else if (isProhibited(o, qualifier)) {
             fixes = createImportPackageFixes(o, reference, holder.isOnTheFly());
           }
           else if (holder.isOnTheFly()) {
@@ -157,6 +164,14 @@ public class GoUnresolvedReferenceInspection extends GoInspectionBase {
         }
       }
     };
+  }
+
+  private static String getTypeName(GoReferenceExpression referenceExpression) {
+    GoAssignmentStatement assignment = PsiTreeUtil.getParentOfType(referenceExpression, GoAssignmentStatement.class);
+    if (assignment == null) return "interface {}";
+    GoExpression expression = GoPsiImplUtil.getRightExpression(assignment, referenceExpression);
+    GoType type = expression != null ? expression.getGoType(null) : null;
+    return type != null ? type.getText() : "interface {}";
   }
 
   @NotNull
